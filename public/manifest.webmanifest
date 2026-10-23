@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "Лексика — тренажёр английских слов",
+  "short_name": "Лексика",
+  "description": "Персональный локальный тренажёр английских слов",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3f2ed",
+  "theme_color": "#f3f2ed",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
