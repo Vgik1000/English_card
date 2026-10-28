@@ -1,4 +1,5 @@
 import { TRAINER_ID } from './domain.js';
+import { SNAPSHOT_STORES, validateSnapshot } from './backup.js';
 
 const DATABASE_NAME = 'english-trainer';
 const DATABASE_VERSION = 1;
@@ -188,13 +189,24 @@ export async function removeDictionary(dictionaryId) {
 }
 
 export async function replaceSnapshot(snapshot) {
+  const validated = validateSnapshot(snapshot);
   const database = await openDatabase();
-  const storeNames = ['cards', 'dictionaries', 'dictionaryCards', 'trainerProgress', 'settings', 'selectionRecent'];
-  const transaction = database.transaction(storeNames, 'readwrite');
-  for (const name of storeNames) {
-    const store = transaction.objectStore(name);
-    store.clear();
-    for (const row of snapshot[name]) store.put(row);
+  const transaction = database.transaction(SNAPSHOT_STORES, 'readwrite');
+  // Wait for abort, not the earlier request error: only then is rollback complete.
+  const completed = new Promise((resolve, reject) => {
+    transaction.oncomplete = resolve;
+    transaction.onabort = () => reject(transaction.error ?? new Error('Восстановление отменено'));
+  });
+  try {
+    for (const name of SNAPSHOT_STORES) {
+      const store = transaction.objectStore(name);
+      store.clear();
+      for (const row of validated[name]) store.put(row);
+    }
+  } catch (error) {
+    transaction.abort();
+    await completed.catch(() => {});
+    throw error;
   }
-  await transactionResult(transaction);
+  await completed;
 }

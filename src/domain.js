@@ -22,12 +22,54 @@ export function getWeight(progress, priority) {
   const attempts = progress?.attemptsCount ?? 0;
   if (priority === 'new') return 1 / Math.pow(1 + attempts, 1.5);
   if (priority === 'hard') {
-    const recent = progress?.recentResults ?? [];
-    if (!recent.length) return 1;
-    const errors = recent.filter((result) => !result).length;
-    return 1 + 5 * (errors / recent.length);
+    return 1 + 5 * (getRecentErrorRate(progress) ?? 0);
   }
   return 1;
+}
+
+export function getRecentErrorRate(progress) {
+  const recent = (progress?.recentResults ?? []).slice(-RECENT_LIMIT);
+  if (!recent.length) return null;
+  return recent.filter((result) => !result).length / recent.length;
+}
+
+export function getStatsSort(criteria = []) {
+  return criteria.length ? criteria : [{ key: 'attempts', direction: 'desc' }];
+}
+
+export function toggleStatsSort(criteria, key) {
+  if (!['correct', 'attempts'].includes(key)) return criteria;
+  if (criteria.some((criterion) => criterion.key === key)) {
+    return criteria.map((criterion) => criterion.key === key
+      ? { ...criterion, direction: criterion.direction === 'desc' ? 'asc' : 'desc' }
+      : criterion);
+  }
+  // Первый выбранный пользователем столбец заменяет порядок по умолчанию.
+  const current = getStatsSort(criteria).find((criterion) => criterion.key === key);
+  return [...criteria, { key, direction: current?.direction === 'desc' ? 'asc' : 'desc' }];
+}
+
+export function sortStatsCards(cards, progressByCard, criteria = []) {
+  const sorting = getStatsSort(criteria);
+  const value = (card, key) => {
+    const progress = progressByCard.get(card.id);
+    const attempts = progress?.attemptsCount ?? 0;
+    return key === 'attempts' ? attempts : (attempts ? progress.correctCount / attempts : null);
+  };
+  return [...cards].sort((a, b) => {
+    for (const { key, direction } of sorting) {
+      const first = value(a, key);
+      const second = value(b, key);
+      // Без оценок процент неизвестен, а не равен нулю.
+      if (first === null && second !== null) return 1;
+      if (second === null && first !== null) return -1;
+      const difference = (first - second) * (direction === 'asc' ? 1 : -1);
+      if (difference) return difference;
+    }
+    return a.english.localeCompare(b.english, 'en', { sensitivity: 'base' })
+      || a.russian.localeCompare(b.russian, 'ru', { sensitivity: 'base' })
+      || a.id.localeCompare(b.id);
+  });
 }
 
 export function pickWeighted(items, getItemWeight, random = Math.random) {
